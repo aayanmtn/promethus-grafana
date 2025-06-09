@@ -9,35 +9,33 @@ services:
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
+    restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
-      - "traefik.http.routers.prometheus.entrypoints=web"
-      - "traefik.http.routers.prometheus.middlewares=prometheus-auth"
-      - "traefik.http.middlewares.prometheus-auth.basicauth.users=admin:$$apr1$$rjvWq9H9$$P8CyAt6CL9aK0ixLhWZmu." # replace with your own hash
-    restart: always
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.yourdomain.com`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
     networks:
       - monitoring
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
-    ports:
-      - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
     restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.yourdomain.com`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     networks:
       - monitoring
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: cadvisor
-    ports:
-      - "8080:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -46,12 +44,11 @@ services:
     restart: always
     networks:
       - monitoring
+    # No external port mapped, only internal
 
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
-    ports:
-      - "9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -63,17 +60,20 @@ services:
     restart: always
     networks:
       - monitoring
+    # No external port mapped, avoid port conflicts
 
   alertmanager:
     image: prom/alertmanager:latest
     container_name: alertmanager
-    ports:
-      - "9093:9093"
     volumes:
       - ./alertmanager:/etc/alertmanager
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
     restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.yourdomain.com`)"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
     networks:
       - monitoring
 
@@ -85,9 +85,11 @@ services:
     restart: always
     networks:
       - monitoring
+    # No ports needed, runs in background
 
 networks:
   monitoring:
+    driver: bridge
 
 volumes:
   prometheus_data:
